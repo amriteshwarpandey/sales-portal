@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /emp/
+Disallow: /candidate/
+Disallow: /view-emp/
+Disallow: /master/
+Disallow: /submission/
