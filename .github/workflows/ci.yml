@@ -49,14 +49,16 @@ jobs:
   docker:
     name: Docker images
     runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: ci-only-secret
     steps:
       - uses: actions/checkout@v4
       - name: Validate compose file
-        run: JWT_SECRET=ci docker compose config --quiet
+        run: docker compose config --quiet
       - name: Build images
-        run: JWT_SECRET=ci docker compose build
+        run: docker compose build
       - name: Start the stack
-        run: JWT_SECRET=ci docker compose up -d --wait --wait-timeout 180
+        run: docker compose up -d --wait --wait-timeout 180
       - name: Smoke test
         run: |
           curl -fsS http://localhost:5000/api/health
@@ -68,4 +70,4 @@ jobs:
             -d '{"email":"master@salesportal.local","password":"Master@12345"}' | grep -q '"role":"masteradmin"'
       - name: Logs on failure
         if: failure()
-        run: JWT_SECRET=ci docker compose logs
+        run: docker compose logs
