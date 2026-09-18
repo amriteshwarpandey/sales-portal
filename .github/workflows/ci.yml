@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  server:
+    name: Server tests
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm test
+        env:
+          MONGO_TEST_URI: mongodb://127.0.0.1:27017/salesportal_test
+
+  client:
+    name: Client lint & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose file
+        run: JWT_SECRET=ci docker compose config --quiet
+      - name: Build images
+        run: JWT_SECRET=ci docker compose build
+      - name: Start the stack
+        run: JWT_SECRET=ci docker compose up -d --wait --wait-timeout 180
+      - name: Smoke test
+        run: |
+          curl -fsS http://localhost:5000/api/health
+          curl -fsS http://localhost:3000/api/customer/plans
+          curl -fsS -o /dev/null http://localhost:3000/login
+          docker compose exec -T server npm run seed
+          curl -fsS -X POST http://localhost:3000/api/admin/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"master@salesportal.local","password":"Master@12345"}' | grep -q '"role":"masteradmin"'
+      - name: Logs on failure
+        if: failure()
+        run: JWT_SECRET=ci docker compose logs
